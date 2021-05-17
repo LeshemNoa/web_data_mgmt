@@ -14,11 +14,10 @@ film_required_fields = {
 	# q3 - 'based on'. since answer is boolean we don't need to visit further links
 	'release', # q4
 	'running time', # q5
-	'star', 'cast', #q6-7
+	'star', #q6-7
 }
 
 person_required_fields = {
-	'birth',
 	'born', # q7
 	'occupation', # q8
 }
@@ -92,7 +91,9 @@ def get_row_content(row, is_film_page=False):
 	data_cell = data_cell[0]
 	data_cell_text = []
 	found_links = []
-	data_lists = data_cell.xpath('.//ul[not(contains(@style, "display: inline"))]')
+	data_lists = data_cell.xpath(
+		'.//ul[not(contains(@style, "display: inline"))][not(descendant::ul)]'
+	)
 	assert len(data_lists) <= 1
 	## regular text data - not a list
 	if len(data_lists) == 0:
@@ -184,6 +185,6 @@ if __name__ == "__main__":
 				i += 1
 			except StopIteration:
 				break
-		with open('./output.json', 'w') as filehandle:
+		with open('./ex2/all_film_data.json', 'w') as filehandle:
 			json.dump(res, filehandle, indent=4, sort_keys=True)
 		
