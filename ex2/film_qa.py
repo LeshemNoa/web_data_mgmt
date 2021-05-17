@@ -92,7 +92,7 @@ def get_row_content(row, is_film_page=False):
 	data_cell = data_cell[0]
 	data_cell_text = []
 	found_links = []
-	data_lists = data_cell.xpath('.//div[@class="plainlist"]/ul')
+	data_lists = data_cell.xpath('.//ul[not(contains(@style, "display: inline"))]')
 	assert len(data_lists) <= 1
 	## regular text data - not a list
 	if len(data_lists) == 0:
@@ -176,14 +176,14 @@ if __name__ == "__main__":
 		g = film_pages()
 		res = []
 		i = 1
-		infobox_crawler('https://en.wikipedia.org/wiki/Feast_(2014_film)')
-		# while True:
-		# 	try:
-		# 		res.extend(infobox_crawler(g.next()))
-		# 		print('finished {}...'.format(i))
-		# 		i += 1
-		# 	except StopIteration:
-		# 		break
-		# with open('./output.json', 'w') as filehandle:
-		# 	json.dump(res, filehandle, indent=4, sort_keys=True)
+		# infobox_crawler('https://en.wikipedia.org/wiki/Feast_(2014_film)')
+		while True:
+			try:
+				res.extend(infobox_crawler(g.next()))
+				print('finished {}...'.format(i))
+				i += 1
+			except StopIteration:
+				break
+		with open('./output.json', 'w') as filehandle:
+			json.dump(res, filehandle, indent=4, sort_keys=True)
 		
