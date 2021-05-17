@@ -1,6 +1,7 @@
 import sys, requests, re
 from lxml import html 
 import json
+import rdflib
 
 wiki_base_url = 'https://en.wikipedia.org'
 film_list_url = 'https://en.wikipedia.org/wiki/List_of_Academy_Award-winning_films'
@@ -145,7 +146,7 @@ def get_infobox_content(page_url, is_film_page=False):
 			if label == None:
 				continue
 			pages_to_visit.extend(found_links)			
-			infobox_content[label] = data_cell_text
+			infobox_content[label.lower()] = data_cell_text
 	return infobox_content, pages_to_visit	
 
 def infobox_crawler(base_page_url):
@@ -173,18 +174,93 @@ def infobox_crawler(base_page_url):
 
 	return collected_data
 
+BASE_URL = "http://example.org/"
+
+def get_valid_name_for_url(name):
+	# name = re.sub(r'\([^()]*\)', '', name) # removing parenthesis
+	name = name.replace(" ", "_") # switching spaces for _
+	return name
+
+def get_relations_map():
+	return {'direct' : rdflib.URIRef(BASE_URL+'direct'), # q1
+			'produce' : rdflib.URIRef(BASE_URL+'produce'), # q2
+			'based on' : rdflib.URIRef(BASE_URL+'based_on'), # q2
+			'release' : rdflib.URIRef(BASE_URL+'release'), # q4
+			'running time' : rdflib.URIRef(BASE_URL+'running_time'), # q5
+			'star' : rdflib.URIRef(BASE_URL+'star'),
+			'cast': rdflib.URIRef(BASE_URL+'cast'),
+			'born': rdflib.URIRef(BASE_URL+'born'), # q7
+			'occupation': rdflib.URIRef(BASE_URL+'occupation')}
+
+
+def is_based_on_a_book(entity):
+	if 'based on' in entity:
+		return True
+	return False
+
+
+def build_ontology_graph(pages_list):
+	ontology_graph = rdflib.Graph()
+	relations_map = get_relations_map()
+	previously_visited = set()
+
+	i = 0
+	while True:
+		try:
+			# res.extend(infobox_crawler(g.next()))
+			curr_url = pages_list.next()
+			# print("current is:{}".format(curr_url))
+			infoboxes_extraced_data = infobox_crawler(curr_url)
+			# print("current is:{}".format(infoboxes_extraced_data))
+			# print('finished {}...'.format(i))
+			print(type(infoboxes_extraced_data))
+			for entity in infoboxes_extraced_data:
+
+				entity_name = get_valid_name_for_url(entity['name'])
+				entity_infobox = entity['infobox']
+				current_entity_object = rdflib.URIRef(BASE_URL+entity_name)
+				if entity['entity'] == 'film':
+					# check based on a book
+
+					print("flipitotio")
+				else:
+					# question 9
+					if "occupation" in entity_infobox:
+						for curr_occupation in entity_infobox['occupation']:
+							curr_occupation_ontology = rdflib.URIRef(BASE_URL+get_valid_name_for_url((curr_occupation)))
+							curr_relation_ontology = relations_map['occupation']
+							ontology_graph.add((current_entity_object, curr_relation_ontology, curr_occupation_ontology))
+					# it is a person
+					print("pakatoo")
+
+				previously_visited.add(entity['name'])
+				i += 1
+			print(ontology_graph.serialize(format="turtle").decode("utf-8"))
+			break
+		except StopIteration:
+			break
+
+
+
+
 if __name__ == "__main__":
 		g = film_pages()
 		res = []
 		i = 1
 		# infobox_crawler('https://en.wikipedia.org/wiki/Feast_(2014_film)')
-		while True:
-			try:
-				res.extend(infobox_crawler(g.next()))
-				print('finished {}...'.format(i))
-				i += 1
-			except StopIteration:
-				break
-		with open('./ex2/all_film_data.json', 'w') as filehandle:
-			json.dump(res, filehandle, indent=4, sort_keys=True)
+		build_ontology_graph(g)
+
+		# while True:
+		# 	try:
+		# 		# res.extend(infobox_crawler(g.next()))
+		# 		curr_url = g.next()
+		# 		print("current is:{}".format(curr_url))
+		# 		print("current is:{}".format(infobox_crawler(curr_url)))
+		# 		print('finished {}...'.format(i))
+		# 		i += 1
+		# 		break
+		# 	except StopIteration:
+		# 		break
+		# with open('./ex2/all_film_data.json', 'w') as filehandle:
+		# 	json.dump(res, filehandle, indent=4, sort_keys=True)
 		
