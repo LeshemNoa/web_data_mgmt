@@ -96,19 +96,23 @@ def get_row_content(row, is_film_page=False):
 	assert len(data_lists) <= 1
 	## regular text data - not a list
 	if len(data_lists) == 0:
-		if len(data_cell.xpath('./a')) == 1 and follow_links:
-			data_cell_url = wiki_base_url + data_cell.xpath('./a')[0].attrib['href']
-			found_links.append(data_cell_url)
+		cell_links = data_cell.xpath('./a[not(descendant::sup)]')				
+		if len(cell_links) >= 1 and follow_links:
+			for link in cell_links:
+				found_url = wiki_base_url + link.attrib['href']
+				found_links.append(found_url)
 		for br in data_cell.xpath(".//br"):
 			br.tail = "<br>" + br.tail if br.tail else "<br>"
+		for b in data_cell.xpath(".//b"): ## ignore bold text
+			b.tail = "<b>" + b.tail if b.tail else "<b>"
 		content = data_cell.text_content()
-		data_cell_text = content.split("<br>")
+		data_cell_text = list(filter(lambda s: not '<b>' in s, content.split("<br>")))
 	## data is a list
 	elif len(data_lists) == 1:
 		list_items = data_lists[0].xpath('./li')
 		for li in list_items:
 			## we only care about the link if it's the first child
-			li_links = li.xpath('./*[1]/self::a')				
+			li_links = li.xpath('./*[1]/self::a[not(descendant::sup)]')				
 			if len(li_links) > 0 and follow_links:
 				li_url = wiki_base_url + li.xpath('./a')[0].attrib['href']
 				found_links.append(li_url)
@@ -120,7 +124,7 @@ def get_row_content(row, is_film_page=False):
 			if len(inline_lists) >= 1:
 				list_items = inline_lists[0].xpath('./li')
 				for li in list_items:
-					li_links = li.xpath('*[1]/self::a')
+					li_links = li.xpath('./*[1]/self::a[not(descendant::sup)]')
 					if len(li_links) > 0 and follow_links:
 						li_url = wiki_base_url + li_links[0].attrib['href']
 						found_links.append(li_url)
@@ -172,13 +176,14 @@ if __name__ == "__main__":
 		g = film_pages()
 		res = []
 		i = 1
-		while True:
-			try:
-				res.extend(infobox_crawler(g.next()))
-				print('finished {}...'.format(i))
-				i += 1
-			except StopIteration:
-				break
-		with open('./output.json', 'w') as filehandle:
-			json.dump(res, filehandle, indent=4, sort_keys=True)
+		infobox_crawler('https://en.wikipedia.org/wiki/Feast_(2014_film)')
+		# while True:
+		# 	try:
+		# 		res.extend(infobox_crawler(g.next()))
+		# 		print('finished {}...'.format(i))
+		# 		i += 1
+		# 	except StopIteration:
+		# 		break
+		# with open('./output.json', 'w') as filehandle:
+		# 	json.dump(res, filehandle, indent=4, sort_keys=True)
 		
