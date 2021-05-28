@@ -14,7 +14,7 @@ film_required_fields = {
 	# q3 - 'based on'. since answer is boolean we don't need to visit further links
 	'release', # q4
 	'running time', # q5
-	'star', 'cast', #q6-7
+	'star', #q6-7
 }
 
 person_required_fields = {
@@ -91,6 +91,19 @@ def get_row_content(row, is_film_page=False):
 	data_cell = data_cell[0]
 	data_cell_text = []
 	found_links = []
+
+	if not is_film_page and 'born' in label.lower():
+		bday = data_cell.xpath('.//*[contains(@class, "bday")]')
+		if len(bday) == 1:
+			return label, [bday[0].text_content()], found_links
+		text = data_cell.text_content().__str__()
+		m = re.search(r'[\d]{4}(\/[\d]{4})?', text)
+		if m == None: ## conclude: no relevant info in this cell as there's no date.
+			print(text)
+			return None, None, None
+		else:
+			return label, [m[0]], found_links
+
 	data_lists = data_cell.xpath(
 		'.//ul[not(contains(@style, "display: inline"))][not(descendant::ul)]'
 	)
