@@ -102,8 +102,7 @@ def get_row_content(row, is_film_page=False):
 		text = data_cell.text_content().__str__()
 		m = re.search(r'[\d]{4}(\/[\d]{4})?', text)
 		if m == None: ## conclude: no relevant info in this cell as there's no date.
-			print(text)
-			return None, None, None
+			return None, None, None	
 		else:
 			return label, [m[0]], found_links
 
@@ -442,8 +441,7 @@ def query_graph(ontology_graph, question):
 			print("Yes")
 		else:
 			print("No")
-	elif question_splitted_to_elements[0]=="What":
-
+		
 	else:
 		print("unsupported question")
 
