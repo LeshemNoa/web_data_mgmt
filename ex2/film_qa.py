@@ -60,8 +60,11 @@ class film_pages(object):
 			if self.index < self.num_films:
 						curr_row = self.rows[self.index]
 						curr_film_href = wiki_base_url + curr_row.xpath('.//td[1]//a')[0].attrib['href']
+						award_num = curr_row.xpath('.//td[3]')[0].text_content().__str__().strip()
+						if award_num.startswith('0'): ## fix for one edge case where there has been a special award
+							award_num = '1'
 						self.index += 1
-						return curr_film_href
+						return curr_film_href, award_num
 			raise StopIteration()
 
 def should_follow_links(label, is_film_page):
@@ -102,7 +105,6 @@ def get_row_content(row, is_film_page=False):
 		text = data_cell.text_content().__str__()
 		m = re.search(r'[\d]{4}(\/[\d]{4})?', text)
 		if m == None: ## conclude: no relevant info in this cell as there's no date.
-			print(text)
 			return None, None, None
 		else:
 			return label, [m[0]], found_links
@@ -246,16 +248,12 @@ def build_ontology_graph(pages_list):
 	ontology_graph = rdflib.Graph()
 	relations_map = get_relations_map()
 
-	i = 0
+	# i = 0
 	while True:
 		try:
-			curr_url = pages_list.next()
+			curr_url, award_num = pages_list.next()
 			infoboxes_extraced_data = infobox_crawler(curr_url)
-			i += 1
-			if i == 2:
-				break
 			for entity in infoboxes_extraced_data:
-
 				entity_name = get_valid_name_for_url(entity['name'])
 				entity_infobox = entity['infobox']
 				current_entity_object = rdflib.URIRef(BASE_URL+entity_name)
@@ -471,7 +469,7 @@ def query_graph(ontology_graph, question):
 		print(', '.join(format_qery_response_list(list(res))))
 
 	else:
-			print("unsupported question")
+		print("unsupported question")
 
 	return ""
 
@@ -489,6 +487,7 @@ if __name__ == "__main__":
 			ontology_graph.parse(ONTOLOGY_FILE_NAME+".nt", format="nt")
 
 			# categorize question
+			print(f"question is:{argv[1]}")
 			query_graph(ontology_graph,argv[1])
 		else:
 			print("unspported command was given! commands supported are either 'question' or 'create'.")
