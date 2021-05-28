@@ -1,6 +1,9 @@
 import sys, requests, re
 from lxml import html 
 import json
+import rdflib
+import urllib
+import sys
 
 wiki_base_url = 'https://en.wikipedia.org'
 film_list_url = 'https://en.wikipedia.org/wiki/List_of_Academy_Award-winning_films'
@@ -21,7 +24,7 @@ person_required_fields = {
 	'born', # q7
 	'occupation', # q8
 }
-
+ONTOLOGY_FILE_NAME = "ontology"
 
 def fetch_html(url):
 	try:
@@ -100,7 +103,7 @@ def get_row_content(row, is_film_page=False):
 		m = re.search(r'[\d]{4}(\/[\d]{4})?', text)
 		if m == None: ## conclude: no relevant info in this cell as there's no date.
 			print(text)
-			return None, None, None	
+			return None, None, None
 		else:
 			return label, [m[0]], found_links
 
@@ -158,7 +161,7 @@ def get_infobox_content(page_url, is_film_page=False):
 			if label == None:
 				continue
 			pages_to_visit.extend(found_links)			
-			infobox_content[label] = data_cell_text
+			infobox_content[label.lower()] = data_cell_text
 	return infobox_content, pages_to_visit	
 
 def infobox_crawler(base_page_url):
@@ -186,18 +189,299 @@ def infobox_crawler(base_page_url):
 
 	return collected_data
 
+BASE_URL = "http://example.org/"
+
+def get_valid_name_for_url(name):
+	# name = re.sub(r'\([^()]*\)', '', name) # removing parenthesis
+	name = name.lstrip()
+	name = name.replace(" ", "_")
+	name = urllib.parse.unquote(name) # switching spaces for _
+	name = name.rstrip("\n")
+	return del_reference(name)
+
+def del_reference(text):
+	new_text = re.sub('\[\d+\]', '', text)
+	return new_text
+
+
+def get_relations_map():
+	return {'direct' : rdflib.URIRef(BASE_URL+'direct'), # q1
+			'produce' : rdflib.URIRef(BASE_URL+'produce'), # q2
+			'based on' : rdflib.URIRef(BASE_URL+'based_on'), # q2
+			'release' : rdflib.URIRef(BASE_URL+'release'), # q4
+			'running time' : rdflib.URIRef(BASE_URL+'running_time'), # q5
+			'star' : rdflib.URIRef(BASE_URL+'star'),
+			'cast': rdflib.URIRef(BASE_URL+'cast'),
+			'born': rdflib.URIRef(BASE_URL+'born'), # q7
+			'occupation': rdflib.URIRef(BASE_URL+'occupation')}
+
+
+def is_based_on_a_book(entity):
+	if 'based on' in entity:
+		return True
+	return False
+
+def format_film_name(arguments_list):
+	formatted_film_name = ""
+	for arg in arguments_list:
+		if formatted_film_name == "":
+			formatted_film_name = arg
+		else:
+			formatted_film_name = formatted_film_name+"_"+arg
+	print("formattedis:",formatted_film_name)
+	return formatted_film_name
+
+def format_query_response(query_response):
+	return (query_response.replace(BASE_URL,"")).replace("_"," ")
+
+def format_qery_response_list(query_response_list):
+	new_list = []
+	for item in query_response_list:
+		new_list.append(item[0])
+	print("new list", new_list)
+	sorted_list = sorted(new_list, key=str.casefold)
+
+	return [format_query_response(item) for item in sorted_list]
+
+
+def build_ontology_graph(pages_list):
+	ontology_graph = rdflib.Graph()
+	relations_map = get_relations_map()
+
+	# i = 0
+	while True:
+		try:
+			curr_url = pages_list.next()
+			infoboxes_extraced_data = infobox_crawler(curr_url)
+			for entity in infoboxes_extraced_data:
+
+				entity_name = get_valid_name_for_url(entity['name'])
+				entity_infobox = entity['infobox']
+				current_entity_object = rdflib.URIRef(BASE_URL+entity_name)
+				print("entity name is:",entity_name)
+				if entity['entity'] == 'film':
+					# check based on a book
+					# question 1 directed film
+					if 'directed by' in entity_infobox:
+						for produce in entity_infobox['directed by']:
+							curr_starring_ontology = rdflib.URIRef(BASE_URL+get_valid_name_for_url(produce))
+							curr_relation_ontology = relations_map['direct']
+							ontology_graph.add((current_entity_object, curr_relation_ontology, curr_starring_ontology))
+
+					# question 2 produce film
+					if 'produced by' in entity_infobox:
+						for produce in entity_infobox['produced by']:
+							curr_starring_ontology = rdflib.URIRef(BASE_URL+get_valid_name_for_url(produce))
+							curr_relation_ontology = relations_map['produce']
+							ontology_graph.add((current_entity_object, curr_relation_ontology, curr_starring_ontology))
+					else:
+						print(f"{entity_name} is missing produced by")
+
+					# question 3 based on a book
+					if 'based on' in entity_infobox:
+						based_on_book = True
+					else:
+						based_on_book = False
+
+					curr_based_on_ontology = rdflib.URIRef(BASE_URL+str(based_on_book))
+					curr_relation_ontology = relations_map['based on']
+					ontology_graph.add((current_entity_object, curr_relation_ontology, curr_based_on_ontology))
+
+					# question 4 release date TODO after cleaning the date format fix this
+					# if 'released date' in entity_infobox:
+					# release_date =entity_infobox['release date']
+					# curr_release_date_ontology = rdflib.URIRef(BASE_URL+str(release_date))
+					# curr_relation_ontology = relations_map['release']
+					# ontology_graph.add((current_entity_object, curr_relation_ontology, curr_release_date_ontology))
+
+
+					# question 5 running time
+					if 'running time' in entity_infobox:
+						for running_time in entity_infobox['running time']:
+							if running_time.find('minutes') > -1:
+								curr_running_time_ontology = rdflib.URIRef(BASE_URL+get_valid_name_for_url(running_time))
+								curr_relation_ontology = relations_map['running time']
+								ontology_graph.add((current_entity_object, curr_relation_ontology, curr_running_time_ontology))
+					else:
+						print(f"{entity_name} is missing running time")
+
+					# question 7 + 6 person stared in film
+					# TODO maybe we need biderctional?
+					if 'starring' in entity_infobox:
+						for starring in entity_infobox['starring']:
+							curr_starring_ontology = rdflib.URIRef(BASE_URL+get_valid_name_for_url((starring)))
+							curr_relation_ontology = relations_map['star']
+							ontology_graph.add((current_entity_object, curr_relation_ontology, curr_starring_ontology))
+					else:
+						print(f"{entity_name} is missing starring")
+
+
+
+					print("flipitotio")
+				else:
+					# it is a person
+					# question 8 when person was born TODO after cleaning the date format fix this
+					# if "born" in entity_infobox:
+					# 	print(entity_infobox['born'])
+					# 	curr_born_ontology = rdflib.URIRef(BASE_URL+(entity_infobox['born']))
+					# 	curr_relation_ontology = relations_map['born']
+					# 	ontology_graph.add((current_entity_object, curr_relation_ontology, curr_born_ontology))
+
+
+					# question 9 what occupies person
+					if "occupation" in entity_infobox:
+						# forum said lower case
+						if ',' in entity_infobox['occupation']:
+							entity_infobox['occupation'] = entity_infobox['occupation'].split(',')
+						for curr_occupation in entity_infobox['occupation']:
+							if ',' in curr_occupation:
+								curr_occupation_splitted = curr_occupation.replace(" ","")
+								curr_occupation_splitted = curr_occupation_splitted.split(',')
+								for current_occupation_splitted in curr_occupation_splitted:
+									if current_occupation_splitted != "":
+										curr_occupation_ontology = rdflib.URIRef(BASE_URL+get_valid_name_for_url(current_occupation_splitted.lower()))
+										curr_relation_ontology = relations_map['occupation']
+										ontology_graph.add((current_entity_object, curr_relation_ontology, curr_occupation_ontology))
+							else:
+								curr_occupation_ontology = rdflib.URIRef(BASE_URL+get_valid_name_for_url(curr_occupation.lower()))
+								curr_relation_ontology = relations_map['occupation']
+								ontology_graph.add((current_entity_object, curr_relation_ontology, curr_occupation_ontology))
+					else:
+						print(f"{entity_name} is missing occupation")
+
+					# it is a person
+					print("pakatoo")
+				# i += 1
+				# if i == 12:
+				# 	break			# print(ontology_graph.serialize(format="turtle").decode("utf-8"))
+		except StopIteration:
+				break
+
+	# save ontology_graph to a file
+	ontology_graph.serialize(ONTOLOGY_FILE_NAME+".nt", format="nt")
+	print("finisihed saving")
+	return ontology_graph
+
+
+def query_graph(ontology_graph, question):
+	# TODO add lexicographic sorting
+	question = question.replace("?","")
+	question_splitted_to_elements = question.split(" ")
+
+	if question_splitted_to_elements[0] == "Who":
+		if question_splitted_to_elements[1] == 'directed':
+			# question 1 who directed film
+			print("q1")
+			query_param = format_film_name(question_splitted_to_elements[2:])
+			query = "select ?x where { <http://example.org/"+query_param+"> <http://example.org/direct> ?x .}"
+			res = ontology_graph.query(query)
+		elif question_splitted_to_elements[1] == 'produced':
+			# question 2 who produced film
+			query_param = format_film_name(question_splitted_to_elements[2:])
+			query = "select ?x where { <http://example.org/"+query_param+"> <http://example.org/produce> ?x .}"
+			res = ontology_graph.query(query)
+		elif question_splitted_to_elements[1] == 'starred':
+			# question 6 who starred in film
+			query_param = format_film_name(question_splitted_to_elements[3:])
+			query = "select ?x where { <http://example.org/"+query_param+"> <http://example.org/star> ?x .}"
+			res = ontology_graph.query(query)
+
+		print(str(list(res)))
+		# for query_result in list(res)
+		print(', '.join(format_qery_response_list(list(res))))
+	elif question_splitted_to_elements[0] == "Is":
+		# question 3 film based on a book
+		list_of_film_args = []
+		for elem in question_splitted_to_elements[1:]:
+			if elem == "based":
+				break
+			list_of_film_args.append(elem)
+		film = format_film_name(list_of_film_args)
+		query = "select ?x where { <http://example.org/"+film+"> <http://example.org/based_on> ?x .}"
+		res = ontology_graph.query(query)
+		print(list(res))
+		if str(list(res)[0][0]) == BASE_URL+"True":
+			print("Yes")
+		elif str(list(res)[0][0]) == BASE_URL+"False":
+			print("No")
+		else:
+			print("something went wrong")
+	# elif question_splitted_to_elements[0]=="When":
+
+	elif question_splitted_to_elements[0] == "How":
+		# question 5
+		if question_splitted_to_elements[1] == "long":
+			query_param = format_film_name(question_splitted_to_elements[3:])
+			query = "select ?x where { <http://example.org/"+query_param+"> <http://example.org/running_time> ?x .}"
+			res = ontology_graph.query(query)
+			print(format_query_response(list(res)[0][0]))
+
+		# question 3 general TODO
+		# elif "also" in question_splitted_to_elements:
+
+		# question 2 general
+		elif "won" in question_splitted_to_elements:
+			query_param = format_film_name(question_splitted_to_elements[3:question_splitted_to_elements.index("won")])
+			query = "select (count(?x) as ?count) where { ?x <http://example.org/star> <http://example.org/"+query_param+"> .}"
+			res = ontology_graph.query(query)
+			print(format_query_response(list(res)[0][0]))
+
+		# question 1 general
+		elif question_splitted_to_elements[len(question_splitted_to_elements)-1] == "books":
+			query = "select (count(?x) as ?count) where { ?x <http://example.org/based_on> <http://example.org/True> .}"
+			res = ontology_graph.query(query)
+			print(format_query_response(list(res)[0][0]))
+	elif question_splitted_to_elements[0] == "Did":
+		person_query_param = format_film_name(question_splitted_to_elements[1:question_splitted_to_elements.index("star")])
+		film_query_param = format_film_name(question_splitted_to_elements[question_splitted_to_elements.index("in")+1:])
+		print("person", person_query_param)
+		print("movie", film_query_param)
+		query = "ask where { <http://example.org/"+film_query_param+"> <http://example.org/star> <http://example.org/"+person_query_param+"> .}"
+		res = ontology_graph.query(query)
+		if len(res) > 0:
+			print("Yes")
+		else:
+			print("No")
+	elif question_splitted_to_elements[0]=="What":
+
+	else:
+		print("unsupported question")
+
+	return ""
+
+
 if __name__ == "__main__":
-		g = film_pages()
 		res = []
 		i = 1
+		argv = sys.argv[1:]
+		if argv[0] == 'create':
+			g = film_pages()
+			build_ontology_graph(g)
+		elif argv[0] == 'question':
+			# load ontology
+			ontology_graph = rdflib.Graph()
+			ontology_graph.parse(ONTOLOGY_FILE_NAME+".nt", format="nt")
+
+			# categorize question
+			print(f"question is:{argv[1]}")
+			query_graph(ontology_graph,argv[1])
+		else:
+			print("unspported command was given! commands supported are either 'question' or 'create'.")
+
 		# infobox_crawler('https://en.wikipedia.org/wiki/Feast_(2014_film)')
-		while True:
-			try:
-				res.extend(infobox_crawler(g.next()))
-				print('finished {}...'.format(i))
-				i += 1
-			except StopIteration:
-				break
-		with open('./ex2/all_film_data.json', 'w') as filehandle:
-			json.dump(res, filehandle, indent=4, sort_keys=True)
+
+
+		# while True:
+		# 	try:
+		# 		# res.extend(infobox_crawler(g.next()))
+		# 		curr_url = g.next()
+		# 		print("current is:{}".format(curr_url))
+		# 		print("current is:{}".format(infobox_crawler(curr_url)))
+		# 		print('finished {}...'.format(i))
+		# 		i += 1
+		# 		break
+		# 	except StopIteration:
+		# 		break
+		# with open('./ex2/all_film_data.json', 'w') as filehandle:
+		# 	json.dump(res, filehandle, indent=4, sort_keys=True)
 		
