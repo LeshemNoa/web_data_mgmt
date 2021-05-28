@@ -60,8 +60,11 @@ class film_pages(object):
 			if self.index < self.num_films:
 						curr_row = self.rows[self.index]
 						curr_film_href = wiki_base_url + curr_row.xpath('.//td[1]//a')[0].attrib['href']
+						award_num = curr_row.xpath('.//td[3]')[0].text_content().__str__().strip()
+						if award_num.startswith('0'): ## fix for one edge case where there has been a special award
+							award_num = '1'
 						self.index += 1
-						return curr_film_href
+						return curr_film_href, award_num
 			raise StopIteration()
 
 def should_follow_links(label, is_film_page):
@@ -250,10 +253,9 @@ def build_ontology_graph(pages_list):
 	# i = 0
 	while True:
 		try:
-			curr_url = pages_list.next()
+			curr_url, award_num = pages_list.next()
 			infoboxes_extraced_data = infobox_crawler(curr_url)
 			for entity in infoboxes_extraced_data:
-
 				entity_name = get_valid_name_for_url(entity['name'])
 				entity_infobox = entity['infobox']
 				current_entity_object = rdflib.URIRef(BASE_URL+entity_name)
@@ -465,9 +467,6 @@ if __name__ == "__main__":
 			query_graph(ontology_graph,argv[1])
 		else:
 			print("unspported command was given! commands supported are either 'question' or 'create'.")
-
-		# infobox_crawler('https://en.wikipedia.org/wiki/Feast_(2014_film)')
-
 
 		# while True:
 		# 	try:
