@@ -99,17 +99,17 @@ def get_row_content(row, is_film_page=False):
 	found_links = []
 
 	if (not is_film_page and 'born' in label.lower()) or \
-	(is_film_page and 'release date' in label.lower()):
+			(is_film_page and 'release date' in label.lower()):
 		bday = data_cell.xpath('.//*[contains(@class, "bday")]')
-		if len(bday) >= 1:
-			dates = [bday[i].text_content() for i in range (len(bday))]
-			return label, dates, found_links
-		text = data_cell.text_content().__str__()
-		m = re.search(r'[\d]{4}(\/[\d]{4})?', text)
-		if m == None: ## conclude: no relevant info in this cell as there's no date.
-			return None, None, None	
-		else:
-			return label, [m[0]], found_links
+	if len(bday) >= 1:
+		dates = [bday[i].text_content() for i in range (len(bday))]
+		return label, dates, found_links
+	text = data_cell.text_content().__str__()
+	m = re.search(r'[\d]{4}(\/[\d]{4})?', text)
+	if m == None: ## conclude: no relevant info in this cell as there's no date.
+		return None, None, None
+	else:
+		return label, [m[0]], found_links
 
 	data_lists = data_cell.xpath(
 		'.//ul[not(contains(@style, "display: inline"))][not(descendant::ul)]'
@@ -119,18 +119,25 @@ def get_row_content(row, is_film_page=False):
 	if len(data_lists) == 0:
 		data_cell_text = []
 		cell_links = data_cell.xpath('./a[not(descendant::sup)]')
+		cell_link_names = []
 		if len(cell_links) >= 1 and follow_links:
 			for link in cell_links:
 				found_url = wiki_base_url + link.attrib['href']
 				found_links.append(found_url)
-				data_cell_text.append(link.attrib['href'].replace('_', ' ').split('/')[-1])
-		else:
-			for br in data_cell.xpath(".//br"):
-				br.tail = "<br>" + br.tail if br.tail else "<br>"
-			for b in data_cell.xpath(".//b"): ## ignore bold text
-				b.tail = "<b>" + b.tail if b.tail else "<b>"
-			content = data_cell.text_content()
-			data_cell_text = list(filter(lambda s: not '<b>' in s, content.split("<br>")))
+				name_from_url = link.attrib['href'].replace('_', ' ').split('/')[-1]
+				cell_link_names.append(urllib.parse.unquote(name_from_url))
+		for br in data_cell.xpath(".//br"):
+			br.tail = "<br>" + br.tail if br.tail else "<br>"
+		for b in data_cell.xpath(".//b"): ## ignore bold text
+			b.tail = "<b>" + b.tail if b.tail else "<b>"
+		content = data_cell.text_content().__str__()
+		content = re.split(r'(?:\<br\>)|(?:\[.*?\])', content)
+		data_cell_text = list(filter(lambda s: s != "" and not '<b>' in s, content))
+		for i in range(len(data_cell_text)):
+			for link_name in cell_link_names:
+				if data_cell_text[i] in link_name:
+					data_cell_text[i] = link_name
+			data_cell_text[i].strip()
 
 	## data is a list
 	elif len(data_lists) == 1:
@@ -142,7 +149,8 @@ def get_row_content(row, is_film_page=False):
 				href = li.xpath('./a')[0].attrib['href']
 				li_url = wiki_base_url + href
 				found_links.append(li_url)
-				data_cell_text.append(href.replace('_', ' ').split('/')[-1])
+				name_from_url = href.replace('_', ' ').split('/')[-1]
+				data_cell_text.append(urllib.parse.unquote(name_from_url))
 			else:
 				data_cell_text.append(li.text_content())
 
@@ -522,19 +530,3 @@ if __name__ == "__main__":
 			print("unspported command was given! commands supported are either 'question' or 'create'.")
 
 		# infobox_crawler('https://en.wikipedia.org/wiki/Feast_(2014_film)')
-
-
-		# while True:
-		# 	try:
-		# 		# res.extend(infobox_crawler(g.next()))
-		# 		curr_url = g.next()
-		# 		print("current is:{}".format(curr_url))
-		# 		print("current is:{}".format(infobox_crawler(curr_url)))
-		# 		print('finished {}...'.format(i))
-		# 		i += 1
-		# 		break
-		# 	except StopIteration:
-		# 		break
-		# with open('./ex2/all_film_data.json', 'w') as filehandle:
-		# 	json.dump(res, filehandle, indent=4, sort_keys=True)
-		
