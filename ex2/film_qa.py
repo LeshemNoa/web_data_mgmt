@@ -98,14 +98,16 @@ def get_row_content(row, is_film_page=False):
 	data_cell_text = []
 	found_links = []
 
-	if not is_film_page and ('born' in label.lower() or 'release date' in label.lower()):
+	if (not is_film_page and 'born' in label.lower()) or \
+	(is_film_page and 'release date' in label.lower()):
 		bday = data_cell.xpath('.//*[contains(@class, "bday")]')
-		if len(bday) == 1:
-			return label, [bday[0].text_content()], found_links
+		if len(bday) >= 1:
+			dates = [bday[i].text_content() for i in range (len(bday))]
+			return label, dates, found_links
 		text = data_cell.text_content().__str__()
 		m = re.search(r'[\d]{4}(\/[\d]{4})?', text)
 		if m == None: ## conclude: no relevant info in this cell as there's no date.
-			return None, None, None
+			return None, None, None	
 		else:
 			return label, [m[0]], found_links
 
@@ -115,17 +117,21 @@ def get_row_content(row, is_film_page=False):
 	assert len(data_lists) <= 1
 	## regular text data - not a list
 	if len(data_lists) == 0:
-		cell_links = data_cell.xpath('./a[not(descendant::sup)]')				
+		data_cell_text = []
+		cell_links = data_cell.xpath('./a[not(descendant::sup)]')
 		if len(cell_links) >= 1 and follow_links:
 			for link in cell_links:
 				found_url = wiki_base_url + link.attrib['href']
 				found_links.append(found_url)
-		for br in data_cell.xpath(".//br"):
-			br.tail = "<br>" + br.tail if br.tail else "<br>"
-		for b in data_cell.xpath(".//b"): ## ignore bold text
-			b.tail = "<b>" + b.tail if b.tail else "<b>"
-		content = data_cell.text_content()
-		data_cell_text = list(filter(lambda s: not '<b>' in s, content.split("<br>")))
+				data_cell_text.append(link.attrib['href'].replace('_', ' ').split('/')[-1])
+		else:
+			for br in data_cell.xpath(".//br"):
+				br.tail = "<br>" + br.tail if br.tail else "<br>"
+			for b in data_cell.xpath(".//b"): ## ignore bold text
+				b.tail = "<b>" + b.tail if b.tail else "<b>"
+			content = data_cell.text_content()
+			data_cell_text = list(filter(lambda s: not '<b>' in s, content.split("<br>")))
+
 	## data is a list
 	elif len(data_lists) == 1:
 		list_items = data_lists[0].xpath('./li')
@@ -133,9 +139,12 @@ def get_row_content(row, is_film_page=False):
 			## we only care about the link if it's the first child
 			li_links = li.xpath('./*[1]/self::a[not(descendant::sup)]')				
 			if len(li_links) > 0 and follow_links:
-				li_url = wiki_base_url + li.xpath('./a')[0].attrib['href']
+				href = li.xpath('./a')[0].attrib['href']
+				li_url = wiki_base_url + href
 				found_links.append(li_url)
-			data_cell_text.append(li.text_content())
+				data_cell_text.append(href.replace('_', ' ').split('/')[-1])
+			else:
+				data_cell_text.append(li.text_content())
 
 			## data contains an inline list. We don't add it to the data cell data
 			## as it's secondary, but we do go over to scrape that page
