@@ -346,18 +346,18 @@ def build_ontology_graph(pages_list):
 					if "occupation" in entity_infobox:
 						# forum said lower case
 						if ',' in entity_infobox['occupation']:
-							entity_infobox['occupation'] = entity_infobox['occupation'].split(',')
+							entity_infobox['occupation'] = entity_infobox['occupation'].split(',').strip()
 						for curr_occupation in entity_infobox['occupation']:
 							if ',' in curr_occupation:
 								curr_occupation_splitted = curr_occupation.replace(" ","")
 								curr_occupation_splitted = curr_occupation_splitted.split(',')
 								for current_occupation_splitted in curr_occupation_splitted:
 									if current_occupation_splitted != "":
-										curr_occupation_ontology = rdflib.URIRef(BASE_URL+get_valid_name_for_url(current_occupation_splitted.lower()))
+										curr_occupation_ontology = rdflib.URIRef(BASE_URL+get_valid_name_for_url(current_occupation_splitted.lower().lstrip()))
 										curr_relation_ontology = relations_map['occupation']
 										ontology_graph.add((current_entity_object, curr_relation_ontology, curr_occupation_ontology))
 							else:
-								curr_occupation_ontology = rdflib.URIRef(BASE_URL+get_valid_name_for_url(curr_occupation.lower()))
+								curr_occupation_ontology = rdflib.URIRef(BASE_URL+get_valid_name_for_url(curr_occupation.lower().lstrip()))
 								curr_relation_ontology = relations_map['occupation']
 								ontology_graph.add((current_entity_object, curr_relation_ontology, curr_occupation_ontology))
 					# else:
