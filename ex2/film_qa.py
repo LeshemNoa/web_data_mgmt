@@ -98,7 +98,7 @@ def get_row_content(row, is_film_page=False):
 	data_cell_text = []
 	found_links = []
 
-	if not is_film_page and 'born' in label.lower():
+	if not is_film_page and ('born' in label.lower() or 'release date' in label.lower()):
 		bday = data_cell.xpath('.//*[contains(@class, "bday")]')
 		if len(bday) == 1:
 			return label, [bday[0].text_content()], found_links
@@ -215,6 +215,7 @@ def get_relations_map():
 			'star' : rdflib.URIRef(BASE_URL+'star'),
 			'cast': rdflib.URIRef(BASE_URL+'cast'),
 			'born': rdflib.URIRef(BASE_URL+'born'), # q7
+			'awards won': rdflib.URIRef(BASE_URL+'awards_won'), # q7
 			'occupation': rdflib.URIRef(BASE_URL+'occupation')}
 
 
@@ -257,7 +258,6 @@ def build_ontology_graph(pages_list):
 				entity_name = get_valid_name_for_url(entity['name'])
 				entity_infobox = entity['infobox']
 				current_entity_object = rdflib.URIRef(BASE_URL+entity_name)
-				print("entity name is:",entity_name)
 				if entity['entity'] == 'film':
 					# check based on a book
 					# question 1 directed film
@@ -273,8 +273,8 @@ def build_ontology_graph(pages_list):
 							curr_starring_ontology = rdflib.URIRef(BASE_URL+get_valid_name_for_url(produce))
 							curr_relation_ontology = relations_map['produce']
 							ontology_graph.add((current_entity_object, curr_relation_ontology, curr_starring_ontology))
-					else:
-						print(f"{entity_name} is missing produced by")
+					# else:
+					# 	print(f"{entity_name} is missing produced by")
 
 					# question 3 based on a book
 					if 'based on' in entity_infobox:
@@ -289,6 +289,11 @@ def build_ontology_graph(pages_list):
 					# question 4 release date TODO after cleaning the date format fix this
 					if 'release date' in entity_infobox:
 						release_date = entity_infobox['release date']
+						# formatted_release_dates_list = []
+						# for date in list(release_date):
+						# 	m = re.search(r'[\d]{4}(\/[\d]{4})?', date)
+						# 	if m != None:
+						# 		formatted_release_dates_list.append(m[0])
 						curr_release_date_ontology = rdflib.URIRef(BASE_URL+get_valid_name_for_url((', '.join(list(release_date)))))
 						curr_relation_ontology = relations_map['release']
 						ontology_graph.add((current_entity_object, curr_relation_ontology, curr_release_date_ontology))
@@ -301,8 +306,8 @@ def build_ontology_graph(pages_list):
 								curr_running_time_ontology = rdflib.URIRef(BASE_URL+get_valid_name_for_url(running_time))
 								curr_relation_ontology = relations_map['running time']
 								ontology_graph.add((current_entity_object, curr_relation_ontology, curr_running_time_ontology))
-					else:
-						print(f"{entity_name} is missing running time")
+					# else:
+					# 	print(f"{entity_name} is missing running time")
 
 					# question 7 + 6 person stared in film
 					# TODO maybe we need biderctional?
@@ -311,12 +316,14 @@ def build_ontology_graph(pages_list):
 							curr_starring_ontology = rdflib.URIRef(BASE_URL+get_valid_name_for_url((starring)))
 							curr_relation_ontology = relations_map['star']
 							ontology_graph.add((current_entity_object, curr_relation_ontology, curr_starring_ontology))
-					else:
-						print(f"{entity_name} is missing starring")
+					# else:
+					# 	print(f"{entity_name} is missing starring")
+					# our extra question
+					curr_starring_ontology = rdflib.URIRef(BASE_URL+(award_num))
+					curr_relation_ontology = relations_map['awards won']
+					ontology_graph.add((current_entity_object, curr_relation_ontology, curr_starring_ontology))
 
 
-
-					print("flipitotio")
 				else:
 					# it is a person
 					# question 8 when person was born TODO after cleaning the date format fix this
@@ -344,23 +351,22 @@ def build_ontology_graph(pages_list):
 								curr_occupation_ontology = rdflib.URIRef(BASE_URL+get_valid_name_for_url(curr_occupation.lower()))
 								curr_relation_ontology = relations_map['occupation']
 								ontology_graph.add((current_entity_object, curr_relation_ontology, curr_occupation_ontology))
-					else:
-						print(f"{entity_name} is missing occupation")
+					# else:
+					# 	print(f"{entity_name} is missing occupation")
 
 					# it is a person
-					print("pakatoo")
 							# print(ontology_graph.serialize(format="turtle").decode("utf-8"))
 		except StopIteration:
 				break
 
 	# save ontology_graph to a file
 	ontology_graph.serialize(ONTOLOGY_FILE_NAME+".nt", format="nt")
-	print("finisihed saving")
+	# print("finisihed saving")
 	return ontology_graph
 
 
 def query_graph(ontology_graph, question):
-	# TODO add lexicographic sorting
+	question = urllib.parse.unquote(question)
 	question = question.replace("?","")
 	question_splitted_to_elements = question.split(" ")
 
@@ -381,7 +387,7 @@ def query_graph(ontology_graph, question):
 			query = "select ?x where { <http://example.org/"+query_param+"> <http://example.org/star> ?x .}"
 			res = ontology_graph.query(query)
 
-		print(str(list(res)))
+		# print(str(list(res)))
 		# for query_result in list(res)
 		print(', '.join(format_qery_response_list(list(res))))
 	elif question_splitted_to_elements[0] == "Is":
@@ -394,7 +400,6 @@ def query_graph(ontology_graph, question):
 		film = format_film_name(list_of_film_args)
 		query = "select ?x where { <http://example.org/"+film+"> <http://example.org/based_on> ?x .}"
 		res = ontology_graph.query(query)
-		print(list(res))
 		if str(list(res)[0][0]) == BASE_URL+"True":
 			print("Yes")
 		elif str(list(res)[0][0]) == BASE_URL+"False":
@@ -431,14 +436,28 @@ def query_graph(ontology_graph, question):
 			query = "select ?x where { <http://example.org/"+query_param+"> <http://example.org/running_time> ?x .}"
 			res = ontology_graph.query(query)
 			print(format_query_response(list(res)[0][0]))
-
-		# question 3 general TODO
-		# elif "also" in question_splitted_to_elements:
+#
+		# question 3 general
+		elif "also" in question_splitted_to_elements:
+			query_param1 = format_film_name(question_splitted_to_elements[2:question_splitted_to_elements.index("are")])
+			query_param2 = format_film_name(question_splitted_to_elements[question_splitted_to_elements.index("are")+2:])
+			query = "select (count(?x) as ?count) where " \
+					"{ ?x <http://example.org/occupation> <http://example.org/"+query_param1+"> . " \
+					"?x <http://example.org/occupation> <http://example.org/"+query_param2+"> . }"
+			res = ontology_graph.query(query)
+			print(format_query_response(list(res)[0][0]))
 
 		# question 2 general
 		elif "won" in question_splitted_to_elements:
-			query_param = format_film_name(question_splitted_to_elements[3:question_splitted_to_elements.index("won")])
+			query_param = format_film_name(question_splitted_to_elements[4:question_splitted_to_elements.index("won")])
 			query = "select (count(?x) as ?count) where { ?x <http://example.org/star> <http://example.org/"+query_param+"> .}"
+			res = ontology_graph.query(query)
+			print(format_query_response(list(res)[0][0]))
+
+		# extra question: How many academy awards did <film> win?
+		elif "win" in question_splitted_to_elements:
+			query_param = format_film_name(question_splitted_to_elements[5:question_splitted_to_elements.index("win")])
+			query = "select ?x where { <http://example.org/"+query_param+"> <http://example.org/awards_won> ?x .}"
 			res = ontology_graph.query(query)
 			print(format_query_response(list(res)[0][0]))
 
@@ -447,15 +466,17 @@ def query_graph(ontology_graph, question):
 			query = "select (count(?x) as ?count) where { ?x <http://example.org/based_on> <http://example.org/True> .}"
 			res = ontology_graph.query(query)
 			print(format_query_response(list(res)[0][0]))
+
 	elif question_splitted_to_elements[0] == "Did":
 		person_query_param = format_film_name(question_splitted_to_elements[1:question_splitted_to_elements.index("star")])
 		film_query_param = format_film_name(question_splitted_to_elements[question_splitted_to_elements.index("in")+1:])
-		print("person", person_query_param)
-		print("movie", film_query_param)
 		query = "ask where { <http://example.org/"+film_query_param+"> <http://example.org/star> <http://example.org/"+person_query_param+"> .}"
 		res = ontology_graph.query(query)
 		if len(res) > 0:
-			print("Yes")
+			if list(res)[0]:
+				print("Yes")
+			else:
+				print("No")
 		else:
 			print("No")
 	elif question_splitted_to_elements[0] == "What":
@@ -465,7 +486,7 @@ def query_graph(ontology_graph, question):
 		person = format_film_name(list_of_person_args)
 		query = "select ?x where { <http://example.org/"+person+"> <http://example.org/occupation> ?x .}"
 		res = ontology_graph.query(query)
-		print(str(list(res)))
+		# print(str(list(res)))
 		print(', '.join(format_qery_response_list(list(res))))
 
 	else:
@@ -487,7 +508,6 @@ if __name__ == "__main__":
 			ontology_graph.parse(ONTOLOGY_FILE_NAME+".nt", format="nt")
 
 			# categorize question
-			print(f"question is:{argv[1]}")
 			query_graph(ontology_graph,argv[1])
 		else:
 			print("unspported command was given! commands supported are either 'question' or 'create'.")
