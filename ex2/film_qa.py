@@ -35,37 +35,37 @@ def fetch_html(url):
 
 ## Iterator for the film list. Gets the wiki page url of the next film in the list
 class film_pages(object):
-		@staticmethod
-		def check_year(row):
-			relevant_years = [str(y) for y in range(2010, 2021)]
-			for year in relevant_years:
-				if len(row.xpath("./td[2]//*[contains(text(), '{}')]".format(year))) > 0:
-					return True
-			return False
+	@staticmethod
+	def check_year(row):
+		relevant_years = [str(y) for y in range(2010, 2021)]
+		for year in relevant_years:
+			if len(row.xpath("./td[2]//*[contains(text(), '{}')]".format(year))) > 0:
+				return True
+		return False
 
-		def __init__(self):
-				self.film_list = fetch_html(film_list_url)
-				self.index = 0
-				self.rows = self.film_list.xpath("//span[@id='List_of_films']/following::table[1]/tbody/tr")[1:]
-				self.rows = list(filter(lambda row: self.check_year(row), self.rows))
-				self.num_films = len(self.rows)
+	def __init__(self):
+		self.film_list = fetch_html(film_list_url)
+		self.index = 0
+		self.rows = self.film_list.xpath("//span[@id='List_of_films']/following::table[1]/tbody/tr")[1:]
+		self.rows = list(filter(lambda row: self.check_year(row), self.rows))
+		self.num_films = len(self.rows)
 
-		def __iter__(self):
-			return self
+	def __iter__(self):
+		return self
 
-		def __next__(self):
-			return self.next()
+	def __next__(self):
+		return self.next()
 
-		def next(self):
-			if self.index < self.num_films:
-						curr_row = self.rows[self.index]
-						curr_film_href = wiki_base_url + curr_row.xpath('.//td[1]//a')[0].attrib['href']
-						award_num = curr_row.xpath('.//td[3]')[0].text_content().__str__().strip()
-						if award_num.startswith('0'): ## fix for one edge case where there has been a special award
-							award_num = '1'
-						self.index += 1
-						return curr_film_href, award_num
-			raise StopIteration()
+	def next(self):
+		if self.index < self.num_films:
+			curr_row = self.rows[self.index]
+			curr_film_href = wiki_base_url + curr_row.xpath('.//td[1]//a')[0].attrib['href']
+			award_num = curr_row.xpath('.//td[3]')[0].text_content().__str__().strip()
+			if award_num.startswith('0'): ## fix for one edge case where there has been a special award
+				award_num = '1'
+			self.index += 1
+			return curr_film_href, award_num
+		raise StopIteration()
 
 def should_follow_links(label, is_film_page):
 	if not is_film_page:
@@ -101,15 +101,15 @@ def get_row_content(row, is_film_page=False):
 	if (not is_film_page and 'born' in label.lower()) or \
 			(is_film_page and 'release date' in label.lower()):
 		bday = data_cell.xpath('.//*[contains(@class, "bday")]')
-	if len(bday) >= 1:
-		dates = [bday[i].text_content() for i in range (len(bday))]
-		return label, dates, found_links
-	text = data_cell.text_content().__str__()
-	m = re.search(r'[\d]{4}(\/[\d]{4})?', text)
-	if m == None: ## conclude: no relevant info in this cell as there's no date.
-		return None, None, None
-	else:
-		return label, [m[0]], found_links
+		if len(bday) >= 1:
+			dates = [bday[i].text_content() for i in range (len(bday))]
+			return label, dates, found_links
+		text = data_cell.text_content().__str__()
+		m = re.search(r'[\d]{4}(\/[\d]{4})?', text)
+		if m == None: ## conclude: no relevant info in this cell as there's no date.
+			return None, None, None
+		else:
+			return label, [m[0]], found_links
 
 	data_lists = data_cell.xpath(
 		'.//ul[not(contains(@style, "display: inline"))][not(descendant::ul)]'
@@ -144,7 +144,7 @@ def get_row_content(row, is_film_page=False):
 		list_items = data_lists[0].xpath('./li')
 		for li in list_items:
 			## we only care about the link if it's the first child
-			li_links = li.xpath('./*[1]/self::a[not(descendant::sup)]')				
+			li_links = li.xpath('./*[1]/self::a[not(descendant::sup)]')
 			if len(li_links) > 0 and follow_links:
 				href = li.xpath('./a')[0].attrib['href']
 				li_url = wiki_base_url + href
@@ -179,9 +179,9 @@ def get_infobox_content(page_url, is_film_page=False):
 			label, data_cell_text, found_links = get_row_content(row, is_film_page)
 			if label == None:
 				continue
-			pages_to_visit.extend(found_links)			
+			pages_to_visit.extend(found_links)
 			infobox_content[label.lower()] = data_cell_text
-	return infobox_content, pages_to_visit	
+	return infobox_content, pages_to_visit
 
 def infobox_crawler(base_page_url):
 	page_stack = [base_page_url]
@@ -194,7 +194,7 @@ def infobox_crawler(base_page_url):
 			infobox_content, pages_to_visit = get_infobox_content(page_url, is_film_page)
 			## TODO: Implement a text sanitation function that cleans weird unicode chars,
 			## cite notes, over expanded dates etc, and call it here
-			
+
 			## at last, add infobox content to collected data
 			if bool(infobox_content):
 				collected_data.append({
@@ -374,7 +374,7 @@ def build_ontology_graph(pages_list):
 					# it is a person
 							# print(ontology_graph.serialize(format="turtle").decode("utf-8"))
 		except StopIteration:
-				break
+			break
 
 	# save ontology_graph to a file
 	ontology_graph.serialize(ONTOLOGY_FILE_NAME+".nt", format="nt")
@@ -529,4 +529,3 @@ if __name__ == "__main__":
 		else:
 			print("unspported command was given! commands supported are either 'question' or 'create'.")
 
-		# infobox_crawler('https://en.wikipedia.org/wiki/Feast_(2014_film)')
