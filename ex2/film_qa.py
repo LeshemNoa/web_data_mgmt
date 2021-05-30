@@ -213,6 +213,7 @@ BASE_URL = "http://example.org/"
 def get_valid_name_for_url(name):
 	# name = re.sub(r'\([^()]*\)', '', name) # removing parenthesis
 	name = name.lstrip()
+	name = name.rstrip()
 	name = name.replace(" ", "_")
 	name = urllib.parse.unquote(name) # switching spaces for _
 	name = name.rstrip("\n")
@@ -273,6 +274,8 @@ def build_ontology_graph(pages_list):
 			infoboxes_extraced_data = infobox_crawler(curr_url)
 			for entity in infoboxes_extraced_data:
 				entity_name = get_valid_name_for_url(entity['name'])
+				# if entity_name != "Gary_Gilbert":
+				# 	continue
 				entity_infobox = entity['infobox']
 				current_entity_object = rdflib.URIRef(BASE_URL+entity_name)
 				if entity['entity'] == 'film':
@@ -353,14 +356,21 @@ def build_ontology_graph(pages_list):
 					# question 9 what occupies person
 					if "occupation" in entity_infobox:
 						# forum said lower case
-						if ',' in entity_infobox['occupation']:
-							entity_infobox['occupation'] = entity_infobox['occupation'].split(',').strip()
+						# print("occupation, gary hafla is:", entity_infobox['occupation'])
+						if ',' in entity_infobox['occupation'][0]:
+							# print("psik is in, job is:",entity_infobox['occupation'])
+							entity_infobox['occupation'] = entity_infobox['occupation'][0].replace("\n","").split(',')
+							# print("psik is in, after split is:",entity_infobox['occupation'])
+
 						for curr_occupation in entity_infobox['occupation']:
 							if ',' in curr_occupation:
-								curr_occupation_splitted = curr_occupation.replace(" ","")
+								# print("psik again! curr occupation is:",curr_occupation)
+								# print("psik again! curr occupation with needed is:",curr_occupation.lstrip().replace(" ","_"))
+								curr_occupation_splitted = curr_occupation.lstrip().replace(" ","_")
 								curr_occupation_splitted = curr_occupation_splitted.split(',')
 								for current_occupation_splitted in curr_occupation_splitted:
 									if current_occupation_splitted != "":
+										print("inner inner, current occup is:",current_occupation_splitted)
 										curr_occupation_ontology = rdflib.URIRef(BASE_URL+get_valid_name_for_url(current_occupation_splitted.lower().lstrip()))
 										curr_relation_ontology = relations_map['occupation']
 										ontology_graph.add((current_entity_object, curr_relation_ontology, curr_occupation_ontology))
@@ -434,6 +444,9 @@ def query_graph(ontology_graph, question):
 			film = format_film_name(list_of_film_args)
 			query = "select ?x where { <http://example.org/"+film+"> <http://example.org/release> ?x .}"
 			res = ontology_graph.query(query)
+			#
+			# TODO sort dates
+			#
 			print(str(list(res)[0][0]).replace("_"," ").replace(BASE_URL,""))
 		# question 8
 		elif 'born' in question_splitted_to_elements:
@@ -445,14 +458,19 @@ def query_graph(ontology_graph, question):
 			person = format_film_name(list_of_film_args)
 			query = "select ?x where { <http://example.org/"+person+"> <http://example.org/born> ?x .}"
 			res = ontology_graph.query(query)
-			print(str(list(res)[0][0]).replace("_"," ").replace(BASE_URL,""))
+			if len(list(res)) > 0:
+				if "/" in str(list(res)[0][0]):
+					splitted_res = str(list(res)[0][0]).replace(BASE_URL,"").split("/")
+					print(splitted_res[0])
+				else:
+					print(str(list(res)[0][0]).replace("_"," ").replace(BASE_URL,""))
 	elif question_splitted_to_elements[0] == "How":
 		# question 5
 		if question_splitted_to_elements[1] == "long":
 			query_param = format_film_name(question_splitted_to_elements[3:])
 			query = "select ?x where { <http://example.org/"+query_param+"> <http://example.org/running_time> ?x .}"
 			res = ontology_graph.query(query)
-			print(format_query_response(list(res)[0][0]))
+			print(', '.join(format_qery_response_list(list(res))))
 #
 		# question 3 general
 		elif "also" in question_splitted_to_elements:
