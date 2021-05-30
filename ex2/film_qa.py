@@ -1,9 +1,7 @@
 import sys, requests, re
 from lxml import html 
-import json
 import rdflib
 import urllib
-import sys
 
 wiki_base_url = 'https://en.wikipedia.org'
 film_list_url = 'https://en.wikipedia.org/wiki/List_of_Academy_Award-winning_films'
@@ -192,8 +190,6 @@ def infobox_crawler(base_page_url):
 		if page_url not in previously_visited:
 			is_film_page = True if page_url == base_page_url else False
 			infobox_content, pages_to_visit = get_infobox_content(page_url, is_film_page)
-			## TODO: Implement a text sanitation function that cleans weird unicode chars,
-			## cite notes, over expanded dates etc, and call it here
 
 			## at last, add infobox content to collected data
 			if bool(infobox_content):
