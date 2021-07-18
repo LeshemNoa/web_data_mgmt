@@ -6,28 +6,20 @@ from nltk.stem import PorterStemmer
 import sys
 import nltk
 
-def tokenize(s):
-	stemmer = PorterStemmer()
-	stopword_set = set(stopwords.words('english'))
-	## remove punctuations
-	s = s.translate(str.maketrans('', '', string.punctuation))
-	words = list(filter(lambda w: str.isalpha(w) and not w.lower() in stopword_set, re.split('\s+', s)))
-	tokens = [stemmer.stem(w) for w in words]
-	word_counts = {}
-	for tok in tokens:
-		if tok in word_counts:
-			word_counts[tok] += 1
-		else:
-			word_counts[tok] = 1
-	return tokens, word_counts
+def tokenize(data):
+	## make sure we have all required nltk deps
+	try:
+		nltk.data.find('tokenizers/punkt')
+	except LookupError:
+		nltk.download('punkt')
 
-# TODO change names
-def tokenize_v2(data):
+	try:
+		nltk.data.find('corpora/stopwords')
+	except LookupError:
+		nltk.download('stopwords')
+
 	tokens_count = {}
 	excluded = set(nltk.corpus.stopwords.words('english')).union(set(string.punctuation))
-	# excluded = excluded.union({"1","2","3","4","5","6","7","8","9","0"})
-	# data = re.sub(r'\d+\.?\d*', '', data)
-
 	unfiltered_question_tokens = nltk.tokenize.word_tokenize(data.lower())
 	tokens = [token for token in unfiltered_question_tokens if token not in excluded]
 	stemmer = nltk.stem.PorterStemmer()
@@ -37,8 +29,6 @@ def tokenize_v2(data):
 			tokens_count[tok] = 0
 		tokens_count[tok] += 1
 	return question_tokens, tokens_count
-
-
 
 def build_index(path):
 	assert os.path.isdir(path)
@@ -58,7 +48,7 @@ def build_index(path):
 			extract = r.xpath('./EXTRACT/text()')
 			abstract = r.xpath('./ABSTRACT/text()')
 			all_text = ' '.join(title + extract + abstract)
-			words, word_counts = tokenize_v2(all_text)
+			words, word_counts = tokenize(all_text)
 			max_count = max(list(word_counts.values()))
 			for tok in list(word_counts.keys()):
 				word_record = {
@@ -109,9 +99,7 @@ def format_topics(topics_list, weight):
 			weighted_topics_list.append(item)
 	return weighted_topics_list
 
-
-
-def build_index_v2(path):
+def build_index(path):
 	assert os.path.isdir(path)
 	files = os.listdir(path)
 	xml_files = list(filter(lambda filename: filename.endswith('.xml'), files))
@@ -121,7 +109,7 @@ def build_index_v2(path):
 	for f in xml_files:
 		doc = etree.parse(path + '/' + f)
 		records = doc.xpath('//RECORD')
-		# iterating over the articels
+		# iterating over the articles
 		for r in records:
 			doc_num += 1
 			record_num = r.xpath('./RECORDNUM/text()')[0].__str__().strip()
@@ -136,8 +124,7 @@ def build_index_v2(path):
 			minor_topics = format_topics(r.xpath('./MINORSUBJ/TOPIC/text()'), MINOR_WEIGHTS)
 			abstract = r.xpath('./ABSTRACT/text()')
 			all_text = ' '.join(weighted_title + extract + abstract + major_topics + minor_topics)
-			# all_text = ' '.join(title + extract + abstract)
-			words, word_counts = tokenize_v2(all_text)
+			words, word_counts = tokenize(all_text)
 			max_count = max(list(word_counts.values()))
 			for tok in list(word_counts.keys()):
 				word_record = {
@@ -150,28 +137,21 @@ def build_index_v2(path):
 				else:
 					got = index[tok]
 					index[tok]["occ_list"].append(word_record)
-			#break
-		#break
 	## now compute IDF for each token in index
 	for tok in list(index.keys()):
 		curr_DF = 0
 		for occ in index[tok]["occ_list"]:
 			curr_DF += int(occ["occ_count"])
-		# print("DF:",curr_DF,"current measure:",len(index[tok]["occ_list"]))
 		index[tok]['df'] = len(index[tok]["occ_list"])
-		index[tok]['idf'] = np.log2(doc_num / len(index[tok]["occ_list"])) # is this the correct way to calculate?
-		if tok == "pseudomona":
-			print("DF:",curr_DF,"current measure:",len(index[tok]["occ_list"]))
+		index[tok]['idf'] = np.log2(doc_num / len(index[tok]["occ_list"]))
 
 	## finally compute doc lengths
 	doc_lengths = { doc_num: 0 for doc_num in all_record_nums }
 	for tok in list(index.keys()):
 		idf = index[tok]["idf"]
 		for doc in index[tok]["occ_list"]:
-			# occ_count = doc["occ_count"]
 			tf = doc["tf"]
 			doc_lengths[doc["record_num"]] += (idf * tf) ** 2
-			# doc_lengths[doc["record_num"]] += (idf * occ_count) ** 2
 	for doc_num in list(doc_lengths.keys()):
 		doc_lengths[doc_num] = np.sqrt(doc_lengths[doc_num])
 	## store computed doc lengths in each record in the index
@@ -182,12 +162,12 @@ def build_index_v2(path):
 
 
 
-def query_index_v2(index_path, q):
+def query_index(index_path, q):
 	index = None
 	with open(index_path, 'r') as j:
 		index = json.load(j)
 
-	query_toks, tok_counts = tokenize_v2(q)
+	query_toks, tok_counts = tokenize(q)
 	found_docs = {}
 	doc_lengths = {}
 	query_length = 0
@@ -195,18 +175,15 @@ def query_index_v2(index_path, q):
 	for tok_count in tok_counts:
 		if tok_counts[tok_count] > max_token_count:
 			max_token_count = tok_counts[tok_count]
-			# print("max token count is:",max_token_count,"for question:",query_toks)
 	# going over each token in the query
 	for tok in query_toks:
 		# if we don't have the token in the index, no need to search for it
 		if tok not in index:
 			continue
-		# print("tok is",tok)
-		idf_for_curr_token = index[tok]["idf"] # TODO make sure
-		# print("idf for tok ",tok," is:", idf_for_curr_token)
+		idf_for_curr_token = index[tok]["idf"]
 		tf_token_q = tok_counts[tok] / max_token_count
 		w_token_q = idf_for_curr_token * tf_token_q  # tf idf
-		query_length += w_token_q**2 # check with math as well
+		query_length += w_token_q**2 
 
 		for doc in index[tok]["occ_list"]:
 			curr_doc_tf = doc['tf']
@@ -223,23 +200,14 @@ def query_index_v2(index_path, q):
 	results = [doc for doc in results[0:40] if found_docs[doc] >= 0.08]
 	return results
 
-
-
-
-
 if __name__ == "__main__":
-	# print("sys is:", sys.argv)
-	# nltk.download('punkt')
 	if sys.argv[1] == 'create_index':
-		index = build_index_v2(sys.argv[2])
+		index = build_index(sys.argv[2])
 		with open('vsm_inverted_index.json', 'w') as f:
-			json.dump(index, f, ensure_ascii=False, indent=4)		# index = build_index_v2('C:/Users/yaire/Desktop/web_data_mgmt/ex4/resources')
+			json.dump(index, f, ensure_ascii=False, indent=4)
 	elif sys.argv[1] == 'query':
-		# TODO for tester only
-		print(sys.argv[3].replace)
 		query = sys.argv[3]
-		docs = query_index_v2(sys.argv[2], query)
-
+		docs = query_index(sys.argv[2], query)
 		with open('ranked_query_docs.txt', 'w') as results_file:
 			for doc in docs:
 				results_file.write(doc+"\n")
