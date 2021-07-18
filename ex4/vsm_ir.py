@@ -1,10 +1,9 @@
 from lxml import etree
-import os, string, re, json
+import os, string, re, json, sys
 import numpy as np
+import nltk
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
-import sys
-import nltk
 
 def tokenize(data):
 	## make sure we have all required nltk deps
@@ -20,15 +19,15 @@ def tokenize(data):
 
 	tokens_count = {}
 	excluded = set(nltk.corpus.stopwords.words('english')).union(set(string.punctuation))
-	unfiltered_question_tokens = nltk.tokenize.word_tokenize(data.lower())
-	tokens = [token for token in unfiltered_question_tokens if token not in excluded]
+	unfiltered_tokens = nltk.tokenize.word_tokenize(data.lower())
+	tokens = [token for token in unfiltered_tokens if token not in excluded]
 	stemmer = nltk.stem.PorterStemmer()
-	question_tokens = [stemmer.stem(token) for token in tokens]
-	for tok in question_tokens:
+	tokens = [stemmer.stem(token) for token in tokens]
+	for tok in tokens:
 		if tok not in tokens_count:
 			tokens_count[tok] = 0
 		tokens_count[tok] += 1
-	return question_tokens, tokens_count
+	return tokens, tokens_count
 
 def build_index(path):
 	assert os.path.isdir(path)
@@ -159,7 +158,6 @@ def build_index(path):
 		for word_record in index[tok]['occ_list']:
 			word_record['doc_len'] = doc_lengths[word_record["record_num"]]
 	return index
-
 
 
 def query_index(index_path, q):
