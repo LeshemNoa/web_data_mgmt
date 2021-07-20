@@ -201,13 +201,13 @@ def query_index(index_path, q):
 if __name__ == "__main__":
 	if sys.argv[1] == 'create_index':
 		index = build_index(sys.argv[2])
-		with open('vsm_inverted_index.json', 'w') as f:
+		with open('vsm_inverted_index.json', 'w+') as f:
 			json.dump(index, f, ensure_ascii=False, indent=4)
 	elif sys.argv[1] == 'query':
 		query = sys.argv[3]
 		docs = query_index(sys.argv[2], query)
-		with open('ranked_query_docs.txt', 'w') as results_file:
+		with open('ranked_query_docs.txt', 'w+') as results_file:
 			for doc in docs:
-				results_file.write(doc+"\n")
+				results_file.write(doc + "\n")
 
 
